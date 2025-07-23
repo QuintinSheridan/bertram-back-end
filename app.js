@@ -111,7 +111,7 @@ app.post('/session/result', async (req, res) => {
     console.error(error.messages);
   }
 
-  const sql = 'SELECT * FROM session_payment WHERE id=?';
+  const sql = 'SELECT * FROM session_payment AS sp INNER JOIN users AS u ON sp.user_id = u.id WHERE sp.id=?';
 
   db.get(sql, [sessionId], function (err, row) {
       if (err) {
@@ -119,9 +119,9 @@ app.post('/session/result', async (req, res) => {
           return res.status(500).json({ error: 'Failed to look up session result.' });
       }
 
-      console.log('row: ', row)
+      // console.log('row: ', row)
 
-      res.status(201).json({ message: 'Session results looked up', sessionId, userId: row.user_id, amount: row.amount });
+      res.status(201).json({ message: 'Session results looked up', sessionId, userId: row?.user_id, userName: row?.user_name, amount: row?.amount });
     })
 })
 
@@ -147,24 +147,26 @@ app.post('/session/status', async (req, res) => {
   }
 
   const sql = 'SELECT * FROM sessions WHERE user_id=? and session_id=?';
-  db.get(sql, [user_id, session_id], function (err, row) {
+  db.get(sql, [userId, sessionId], function (err, row) {
       if (err) {
           console.error('Error looking up session:', err.message);
           return res.status(500).json({ error: 'Failed to create session.' });
       }
 
-      if(row.vote) {
+      console.log('row: ', row)
+
+      if(row && row.vote) {
         console.log('User session found')
-        res.status(201).json({ message: 'User session confirmed', sessionId, userCount, vote: row.vote, amount: row.amount });
+        res.status(201).json({ message: 'User session confirmed', sessionId, userId, vote: row.vote, amount: row.amount });
       } else {
         console.log('Creating user session')
         const sql="INSERT INTO sessions (user_id, session_id) VALUES(?,?)"
-        db.run(sql, [user_id, session_id], function (err, row) {
+        db.run(sql, [userId, sessionId], function (err, row) {
           if (err) {
               console.error('Err:or creating user session', err.message);
               return res.status(500).json({ error: 'Failed to create session.' });
           }
-          res.status(201).json({ message: 'User session confirmed', sessionId, userCount, vote: undefined, amount: undefined });
+          res.status(201).json({ message: 'User session confirmed', sessionId, userId, vote:undefined, amount: undefined });
         })
       }
   });

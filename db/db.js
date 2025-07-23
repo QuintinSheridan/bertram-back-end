@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     session_id INTEGER NOT NULL,
     user_id Integer NOT NULL,
     vote TEXT,
-    ammount FLOAT,
+    amount FLOAT,
     FOREIGN KEY (session_id) REFERENCES session_payment(id)
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
