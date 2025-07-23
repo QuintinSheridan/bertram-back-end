@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS session_payment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_count Integer NOT NULL,
     user_id INTEGER,
-    ammount FLOAT,
+    amount FLOAT,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 

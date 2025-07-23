@@ -89,9 +89,87 @@ app.post('/session/create', async (req, res) => {
           console.error('Error inserting session:', err.message);
           return res.status(500).json({ error: 'Failed to create session.' });
       }
-      res.status(201).json({ message: 'User created successfully', id: this.lastID, userCount });
+      res.status(201).json({ message: 'Session created successfully', id: this.lastID, userCount });
   });
 })
+
+app.post('/session/result', async (req, res) => {
+  const { sessionId } = req.body
+
+  console.log("sessionId: ", sessionId)
+
+  const sessionResultSchema = vine.object({
+    sessionId: vine.number()
+  });
+
+  try {
+    const validatedData = await vine.validate({
+      schema: sessionResultSchema,
+      data: req.body,
+    });
+  } catch (error) {
+    console.error(error.messages);
+  }
+
+  const sql = 'SELECT * FROM session_payment WHERE id=?';
+
+  db.get(sql, [sessionId], function (err, row) {
+      if (err) {
+          console.error('Error looking up session result:', err.message);
+          return res.status(500).json({ error: 'Failed to look up session result.' });
+      }
+
+      console.log('row: ', row)
+
+      res.status(201).json({ message: 'Session results looked up', sessionId, userId: row.user_id, amount: row.amount });
+    })
+})
+
+
+app.post('/session/status', async (req, res) => {
+  const { userId, sessionId } = req.body
+
+  console.log("userId: ", userId)
+  console.log("sessionId: ", sessionId)
+
+  const userCountSchema = vine.object({
+    userId: vine.number(),
+    sessionId: vine.number()
+  });
+
+  try {
+    const validatedData = await vine.validate({
+      schema: userCountSchema,
+      data: req.body,
+    });
+  } catch (error) {
+    console.error(error.messages);
+  }
+
+  const sql = 'SELECT * FROM sessions WHERE user_id=? and session_id=?';
+  db.get(sql, [user_id, session_id], function (err, row) {
+      if (err) {
+          console.error('Error looking up session:', err.message);
+          return res.status(500).json({ error: 'Failed to create session.' });
+      }
+
+      if(row.vote) {
+        console.log('User session found')
+        res.status(201).json({ message: 'User session confirmed', sessionId, userCount, vote: row.vote, amount: row.amount });
+      } else {
+        console.log('Creating user session')
+        const sql="INSERT INTO sessions (user_id, session_id) VALUES(?,?)"
+        db.run(sql, [user_id, session_id], function (err, row) {
+          if (err) {
+              console.error('Err:or creating user session', err.message);
+              return res.status(500).json({ error: 'Failed to create session.' });
+          }
+          res.status(201).json({ message: 'User session confirmed', sessionId, userCount, vote: undefined, amount: undefined });
+        })
+      }
+  });
+})
+
 
 app.listen(port, () => {
   console.log(`Express server running at http://localhost:${port}/`);
