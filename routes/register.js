@@ -1,5 +1,5 @@
 import express from 'express'
-import db from '../db/db.js'
+import db from '../db/dbHandle.js'
 import vine from '@vinejs/vine'
 
 const router  = express.Router()

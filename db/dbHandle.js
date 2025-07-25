@@ -1,6 +1,6 @@
-// const sqlite3 = require('sqlite3').verbose();
-// const path = require('path');
 import sqlite3 from 'sqlite3'
+import { open } from 'sqlite'
+
 import path from 'path'
 const __dirname = path.resolve()
 
@@ -32,28 +32,23 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 `
 
+const inititializeDb = async() => {
+    const db = await open({
+        filename: DB_PATH,
+        driver: sqlite3.Database
+    })
 
-
-function initializeDatabase() {
-    let db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+    db.exec(TABLES_SQL, (err) => {
         if (err) {
-            console.error('Error opening database:', err.message);
-            return;
+            console.error('Error creating tables:', err.message);
+        } else {
+            console.log('Tables created or already exist.');
         }
-        console.log('Connected to the SQLite database.');
-
-        db.exec(TABLES_SQL, (err) => {
-            if (err) {
-                console.error('Error creating tables:', err.message);
-            } else {
-                console.log('Tables created or already exist.');
-            }
-        });
     });
 
     return db
 }
 
-const db = initializeDatabase();
+const db = await inititializeDb()
 
 export default db
