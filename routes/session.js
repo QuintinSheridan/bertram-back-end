@@ -1,6 +1,7 @@
 import express from 'express'
 import db from '../db/db.js'
 import vine from '@vinejs/vine'
+import { getPayer, processDecision } from '../utils/session.js'
 
 const router  = express.Router()
 
@@ -95,26 +96,26 @@ router.post('/session/create', async (req, res) => {
     }
 
     const sql = 'SELECT * FROM sessions WHERE user_id=? and session_id=?';
-    db.get(sql, [userId, sessionId], function (err, row) {
+    await db.get(sql, [userId, sessionId], async function (err, row) {
         if (err) {
             console.error('Error looking up session:', err.message);
             return res.status(500).json({ error: 'Failed to create session.' });
         }
 
-        console.log('row: ', row)
+        console.log('sessions row: ', row)
 
-        if(row && row.vote) {
+        if(row) {
           console.log('User session found')
-          res.status(201).json({ message: 'User session confirmed', sessionId, userId, vote: row.vote, amount: row.amount });
+          res.status(201).json({ message: 'User session voting confirmed', sessionId, userId, vote: row.vote, amount: row.amount });
         } else {
           console.log('Creating user session')
           const sql="INSERT INTO sessions (user_id, session_id) VALUES(?,?)"
-          db.run(sql, [userId, sessionId], function (err, row) {
+          await db.run(sql, [userId, sessionId], function (err, row) {
             if (err) {
                 console.error('Err:or creating user session', err.message);
                 return res.status(500).json({ error: 'Failed to create session.' });
             }
-            res.status(201).json({ message: 'User session confirmed', sessionId, userId, vote:undefined, amount: undefined });
+            res.status(201).json({ message: 'User session created', sessionId, userId, vote:undefined, amount: undefined });
           })
         }
     });
@@ -123,22 +124,26 @@ router.post('/session/create', async (req, res) => {
   /// *** session vote
   router.post('/session/vote', async (req, res) => {
     const { userId, sessionId, vote, amount } = req.body
-    console.log("userId: ", userId)
-    console.log("sessionId: ", sessionId)
+    // console.log("userId: ", userId)
+    // console.log("sessionId: ", sessionId)
+    // console.log("vote: ", vote)
+    // console.log("amount: ", amount)
+
 
     const sessionVoteSchema = vine.object({
       userId: vine.number(),
       sessionId: vine.number(),
-      method: vine.string(),
+      vote: vine.string(),
       amount: vine.number()
     });
 
     try {
-      const sessionVoteSchema = await vine.validate({
-        schema: userCountSchema,
+      const validatedData = await vine.validate({
+        schema: sessionVoteSchema,
         data: req.body,
       });
     } catch (error) {
+      // console.log('wtf: ', error)
       console.error(error.messages);
       return res.status(400).json({
         message: 'Validation failed',
@@ -147,7 +152,8 @@ router.post('/session/create', async (req, res) => {
     }
 
     // get the user count
-    let userCount
+    let userCount = undefined
+
     const sqlSession = 'SELECT user_count FROM session_payment WHERE id=?';
     await db.get(sqlSession, [ sessionId], function (err, row) {
       if (err) {
@@ -155,11 +161,13 @@ router.post('/session/create', async (req, res) => {
           return res.status(500).json({ error: 'Failed to get session info.' });
       }
 
-      console.log('row: ', row)
+      // console.log("session_row: ", row)
 
       if(row && row?.user_count) {
-        console.log('Session found')
-        userCount = userCount
+        // console.log('Session found')
+        // console.log('row.user_count: ', row.user_count)
+        userCount = row?.user_count
+        // console.log('wtf userCount: ', row.user_count)
 
       } else {
         return res.status(404).send({
@@ -168,13 +176,15 @@ router.post('/session/create', async (req, res) => {
       }
     })
 
+    console.log('userCount dude: ', userCount)
+
     // write user vote to db
     let responseBody
 
     console.log('making insertion...')
 
-    const sqlVoteInsert = 'INSERT INTO sessions (user_id, session_id, vote, amount) VALUES (?, ?, ?, ?)';
-    await db.run(sqlVoteInsert, [ userId, sessionId, vote, amount], function (err) {
+    const sqlVoteInsert = 'UPDATE sessions SET amount=?, vote=? WHERE user_id=? AND session_id=?';
+    await db.run(sqlVoteInsert, [ amount, vote, userId, sessionId], function (err) {
         if (err) {
             console.error('Error inserting session:', err.message);
             return res.status(500).json({ error: 'Failed to cast user vote.', userId, sessionId, vote, amount});
@@ -182,31 +192,43 @@ router.post('/session/create', async (req, res) => {
         responseBody = {message: "User vote caast.", userId, sessionId, vote, amount};
     });
 
+    // get existing user votes to find out if a selection should be made
+    let votesCount = 0
+    let userVotes = []
+    const sqlGetVotes = 'SELECT * FROM sessions WHERE session_id=? and VOTE IS NOT NULL';
+    await db.all(sqlGetVotes, [sessionId], async function (err, rows) {
+      if (err) {
+        console.error('Error looking up session votes:', err.message)
+        return res.status(500).json({ error: 'Failed to get session votes.' })
+      }
+
+      // rows.forEach((row) => {
+      //   console.log(row); // Or process the row data as needed
+      // });
+
+      // console.log('session  rows: ', rows)
+      if (rows) {
+        userVotes = rows?.user_id ? [rows] : rows
+        votesCount = userVotes.length
+        console.log('userVotes: ', userVotes)
+      }
+
+      if (votesCount === userCount) {
+        const decision = await getPayer(userVotes, sessionId)
+        console.log("/n/n/n decision: ", decision)
+        const processDecisionResult = await processDecision(decision)
+
+        // if (processDecisionResult.error) {
+        //   return res.status(500).json({ ...processDecisionResult })
+        // }
+
+      } else {
+        console.log("votes_count: ", votesCount)
+        console.log("userCount: ", userCount)
+      }
+    })
+
     return res.status(201).json(responseBody)
-
-    // // get existing user votes to find out if a selection should be made
-    // let votesCount = 0
-    // let userVotes = []
-    // const sqlGetVotes = 'SELECT * FROM sessions WHERE id=? and VOTE IS NOT NULL';
-    // db.get(sqlGetVotes, [ sessionId ], function (err, rows) {
-    //     if (err) {
-    //         console.error('Error looking up session votes:', err.message);
-    //         return res.status(500).json({ error: 'Failed to get session votes.' });
-    //     }
-    //     console.log('rows: ', rows)
-    //     if(rows)
-    //       votesCount = rows.length
-    //       userVotes = rows
-    //     })
-    // });
-
-    // if(votesCount === userCount){
-    //   const decision = getPayer(userVotes)
-    // }
-
-    // processDecision(decision)
-
-    // return res.status(500).json({ error: 'Failed to cast user vote.', userId, sessionId, vote, amount});
 
   })
 

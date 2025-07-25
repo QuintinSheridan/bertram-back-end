@@ -12,13 +12,6 @@ CREATE TABLE IF NOT EXISTS users (
     password TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS purchases (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    amount FlOAT,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
 CREATE TABLE IF NOT EXISTS session_payment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_count Integer NOT NULL,
@@ -33,6 +26,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id Integer NOT NULL,
     vote TEXT,
     amount FLOAT,
+    PRIMARY KEY (session_id, user_id)
     FOREIGN KEY (session_id) REFERENCES session_payment(id)
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
