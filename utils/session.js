@@ -104,56 +104,77 @@ export const getPayer = async (userVotes, sessionId) => {
             const deficits = {}
 
             const deficitSQL = `select
-            (SELECT sum(s.amount) from session_payment sp inner join sessions as s on s.session_id = sp.id where sp.user_id=? and s.user_id=?) -
-            (SELECT sum(s.amount) from session_payment sp inner join sessions as s on s.session_id = sp.id where sp.user_id=? and s.user_id=?) as deficit
+            (SELECT TOTAL(s.amount) from session_payment sp inner join sessions as s on s.session_id = sp.id where sp.user_id=? and s.user_id=?) -
+            (SELECT TOTAL(s.amount) from session_payment sp inner join sessions as s on s.session_id = sp.id where sp.user_id=? and s.user_id=?) as deficit
             `
 
             console.log('userVotes: ', userVotes)
+            const numVotes = userVotes.length
 
-            for(let i = 0; i++; i < userVotes.length){
+            for(let i = 0; i < userVotes.length; i++){
                 const vote_i = userVotes[i]
                 console.log('vote_i: ', vote_i)
                 const iUserId = vote_i.user_id
-                if( !(vote_i.userId in deficits)){
-                    deficits[vote_i.userId] = {}
+                if( !(iUserId in deficits)){
+                    deficits[String(iUserId)] = {}
                 }
-                for(let j=i+1; j++; j < userVotes.length) {
-                    const vote_j = user_votes[j]
-                    console.log('vote_j: ', vote_j)
+                for(let j = i+1; j < userVotes.length; j++){
+                    const vote_j = userVotes[j]
+                    console.log('vote_i: ', vote_i)
                     const jUserId = vote_j.user_id
-                    if( !(vote_j.user_id in deficits)){
-                        deficits[vote_j.user_id] = {}
+                    if( !(jUserId in deficits)){
+                        deficits[String(jUserId)] = {}
                     }
                     console.log(`Getting defict between ${iUserId} and ${jUserId}`)
-                    // await db.get(deficitSQL, [iUserId, jUserId, jUserId, iUserId], (err, row) => {
-                    //     if (err) {
-                    //         console.error('Error looking up user deficit:', err.message);
-                    //         return {error: "Error looking up user deficit:", userOne: iUserId, userTwo: jUserId}
-                    //     }
-                    //     const ijDeficit = row?.deficit ? row.deficit : 0
-                    //     deficits[iUserId][jUserId] = ijDeficit
-                    //     deficits[jUserId][iUserId] = -1*ijDeficit
-                    // })
+                    try{
+                        const deficitResult = await db.get(deficitSQL, [iUserId, jUserId, jUserId, iUserId])
+                        console.log('deficitResult: ', deficitResult)
+                        const ijDeficit = deficitResult?.deficit && deficitResult?.deficit !== null ? deficitResult.deficit : 0
+                        // console.log('setting deficit')
+                        // console.log('deficits: ', deficits)
+                        deficits[String(iUserId)][String(jUserId)] = ijDeficit
+                        deficits[String(jUserId)][String(iUserId)] = -1*ijDeficit
+                        // if(ijDeficit === 0) {
+                        //     console.log("setting deficit to 0")
+                        //     deficits[String(jUserId)][String(iUserId)] = 0
+                        // } else{
+                        //     console.log("setting deficit to inverse")
+                        //     deficits[String(jUserId)][String(iUserId)] = -1*ijDeficit
+                        // }
+
+                    } catch(e) {
+                        console.error('Error looking up user deficit:', e);
+                        return {error: "Error looking up user deficit:", userOne: iUserId, userTwo: jUserId}
+                    }
                 }
-                console.log("deficits: ", deficits)
             }
+
+            console.log("\n\n\n\ final deficits: ", deficits)
 
             let tybreakers = []
             let maxDeficit = undefined
 
-            Object.entries(deficits).forEach(([userId, value]) => {
+            Object?.entries(deficits).forEach(([key, value]) => {
+                // console.log("userId: ", key)
+                // console.log("value: ", value)
                 let totalDeficit = 0
 
-                Object.entries(value).forEach(([key, deficit]) => {
-                    totalDeficit += deficit
+                Object?.entries(value).forEach(([key, value]) => {
+                    // console.log("to user id: ", key)
+                    // console.log("deficit: ", value)
+                    totalDeficit += value
                 })
 
-                if(totalDeficit > maxDeficit) {
-                    tybreakers = [userId]
-                } else if(totalDeficit == maxDeficit) {
-                    tybreakers.append(userId)
+                if(totalDeficit < maxDeficit || !maxDeficit) {
+                    tybreakers = [key]
+                    maxDeficit = totalDeficit
+                } else if(totalDeficit === maxDeficit) {
+                    tybreakers.append(key)
                 }
             })
+
+            console.log('maxDeficit: ', maxDeficit)
+            console.log('tybreakers : ', tybreakers)
 
             // Object.entries(voteCounts).forEach(([key, value]) => {
             //     if(!maxDeficit || value < maxDeficit) {
@@ -165,10 +186,10 @@ export const getPayer = async (userVotes, sessionId) => {
             // })
 
             if(tybreakers.lenght === 1) {
-                payerId = tybreakers[0]
+                payerId = parseInt(tybreakers[0])
             } else {
                 const randomIndex = Math.floor(Math.random() * tybreakers.length);
-                payerId = tybreakers[randomIndex]
+                payerId = parseInt(tybreakers[randomIndex])
     }
             break
     }
