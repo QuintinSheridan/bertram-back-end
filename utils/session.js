@@ -27,7 +27,7 @@ export const getPayer = async (userVotes, sessionId) => {
             maxCount = value
             tybreakers = [key]
         } else if(value === maxCount) {
-            tybreakers.append(key)
+            tybreakers.push(key)
         }
     })
 
@@ -169,7 +169,7 @@ export const getPayer = async (userVotes, sessionId) => {
                     tybreakers = [key]
                     maxDeficit = totalDeficit
                 } else if(totalDeficit === maxDeficit) {
-                    tybreakers.append(key)
+                    tybreakers.push(key)
                 }
             })
 
@@ -185,7 +185,7 @@ export const getPayer = async (userVotes, sessionId) => {
             //     }
             // })
 
-            if(tybreakers.lenght === 1) {
+            if(tybreakers.length === 1) {
                 payerId = parseInt(tybreakers[0])
             } else {
                 const randomIndex = Math.floor(Math.random() * tybreakers.length);
